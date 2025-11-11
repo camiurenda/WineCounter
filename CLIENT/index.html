@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contador de Vinos - Feria</title>
+  <script src="config.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 10px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      color: #2d3748;
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+
+    /* Status indicator */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    .status.connected {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .status.disconnected {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .status.reconnecting {
+      background: #feebc8;
+      color: #7c2d12;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .status.connected .status-dot {
+      background: #22543d;
+    }
+
+    .status.disconnected .status-dot {
+      background: #742a2a;
+    }
+
+    .status.reconnecting .status-dot {
+      background: #7c2d12;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Totals section */
+    .totals {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .totals h2 {
+      color: #2d3748;
+      margin-bottom: 15px;
+    }
+
+    .totals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .total-card {
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .total-card.glasses {
+      background: #ebf8ff;
+    }
+
+    .total-card.bottles {
+      background: #f0fff4;
+    }
+
+    .total-card.grand {
+      background: #2d3748;
+      color: white;
+    }
+
+    .total-label {
+      font-size: 0.9em;
+      font-weight: 600;
+      margin-bottom: 8px;
+      opacity: 0.8;
+    }
+
+    .total-value {
+      font-size: 2.5em;
+      font-weight: bold;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .btn {
+      padding: 15px 25px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: #4299e1;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #3182ce;
+    }
+
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #e53e3e;
+    }
+
+    /* Wines grid */
+    .wines-section h2 {
+      color: white;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    .wines-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .wine-card {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+
+    .wine-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+
+    .wine-name {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #2d3748;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .counters {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .counter {
+      text-align: center;
+    }
+
+    .counter-label {
+      font-size: 0.9em;
+      font-weight: 600;
+      color: #718096;
+      margin-bottom: 8px;
+    }
+
+    .counter-value {
+      font-size: 3em;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .counter.glasses .counter-value {
+      color: #3182ce;
+    }
+
+    .counter.bottles .counter-value {
+      color: #38a169;
+    }
+
+    .counter-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .counter-btn {
+      width: 50px;
+      height: 50px;
+      border: none;
+      border-radius: 50%;
+      font-size: 1.5em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: white;
+    }
+
+    .counter-btn:active {
+      transform: scale(0.95);
+    }
+
+    .counter-btn.minus {
+      background: #f56565;
+    }
+
+    .counter-btn.minus:hover {
+      background: #e53e3e;
+    }
+
+    .counter-btn.plus {
+      background: #48bb78;
+    }
+
+    .counter-btn.plus:hover {
+      background: #38a169;
+    }
+
+    .wine-total {
+      padding-top: 15px;
+      border-top: 2px solid #e2e8f0;
+      text-align: center;
+      font-weight: 600;
+      color: #4a5568;
+    }
+
+    .wine-total-value {
+      font-size: 1.3em;
+      font-weight: bold;
+      color: #2d3748;
+      margin-left: 8px;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .modal h3 {
+      color: #2d3748;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+    }
+
+    .modal p {
+      color: #4a5568;
+      margin-bottom: 25px;
+      line-height: 1.6;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+    }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 50px;
+      color: white;
+      font-size: 1.2em;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.5em;
+      }
+
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .wines-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .total-value {
+        font-size: 2em;
+      }
+
+      .counter-value {
+        font-size: 2.5em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🍷 Contador de Vinos - Feria</h1>
+      <div class="status" id="status">
+        <span class="status-dot"></span>
+        <span id="status-text">Conectando...</span>
+      </div>
+    </div>
+
+    <!-- Totals -->
+    <div class="totals">
+      <h2>📊 Totales</h2>
+      <div class="totals-grid">
+        <div class="total-card glasses">
+          <div class="total-label">Total Copas</div>
+          <div class="total-value" id="total-glasses">0</div>
+        </div>
+        <div class="total-card bottles">
+          <div class="total-label">Total Botellas</div>
+          <div class="total-value" id="total-bottles">0</div>
+        </div>
+        <div class="total-card grand">
+          <div class="total-label">Total General</div>
+          <div class="total-value" id="grand-total">0</div>
+        </div>
+      </div>
+      <div class="actions">
+        <a href="admin.html" class="btn" style="background: #805ad5; color: white; text-decoration: none; text-align: center;">⚙️ Administrar Vinos</a>
+        <button class="btn btn-primary" onclick="exportCSV()">📥 Descargar CSV</button>
+        <button class="btn btn-danger" onclick="showResetModal()">🔄 Resetear Todo</button>
+      </div>
+    </div>
+
+    <!-- Wines Section -->
+    <div class="wines-section">
+      <h2>Vinos Disponibles</h2>
+      <div class="wines-grid" id="wines-grid">
+        <div class="loading">Cargando vinos...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Confirmation Modal -->
+  <div class="modal" id="reset-modal">
+    <div class="modal-content">
+      <h3>⚠️ Confirmar Reseteo</h3>
+      <p>¿Estás seguro de que quieres resetear TODOS los contadores a cero? Esta acción no se puede deshacer.</p>
+      <div class="modal-actions">
+        <button class="btn" onclick="hideResetModal()" style="background: #e2e8f0; color: #2d3748;">Cancelar</button>
+        <button class="btn btn-danger" onclick="resetAllCounters()">Sí, Resetear</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Estado global
+    let wines = [];
+    let socket = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 10;
+
+    // Configuración del socket
+    function initSocket() {
+      const socketUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+      socket = io(socketUrl, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+        timeout: 20000,
+        transports: ['websocket', 'polling'] // Intentar WebSocket primero, luego polling
+      });
+
+      // Eventos de conexión
+      socket.on('connect', () => {
+        console.log('✅ Conectado al servidor');
+        reconnectAttempts = 0;
+        updateStatus('connected');
+      });
+
+      socket.on('disconnect', () => {
+        console.log('❌ Desconectado del servidor');
+        updateStatus('disconnected');
+      });
+
+      socket.on('reconnecting', (attemptNumber) => {
+        console.log(`🔄 Reintentando conexión... (${attemptNumber}/${MAX_RECONNECT_ATTEMPTS})`);
+        reconnectAttempts = attemptNumber;
+        updateStatus('reconnecting');
+      });
+
+      socket.on('reconnect_failed', () => {
+        console.log('❌ Falló la reconexión');
+        updateStatus('disconnected');
+        alert('No se pudo reconectar al servidor. Por favor, recarga la página.');
+      });
+
+      // Eventos de datos
+      socket.on('initial-data', (data) => {
+        console.log('📦 Datos iniciales recibidos:', data.length, 'vinos');
+        wines = data;
+        renderWines();
+        updateTotals();
+      });
+
+      socket.on('wine-updated', (updatedWine) => {
+        console.log('🔄 Vino actualizado:', updatedWine.name);
+        const index = wines.findIndex(w => w._id === updatedWine._id);
+        if (index !== -1) {
+          wines[index] = updatedWine;
+          updateWineCard(updatedWine);
+          updateTotals();
+        }
+      });
+
+      socket.on('wines-reset', (data) => {
+        console.log('🔄 Todos los contadores reseteados');
+        wines = data;
+        renderWines();
+        updateTotals();
+      });
+
+      socket.on('sync-data', (data) => {
+        console.log('🔄 Datos sincronizados');
+        wines = data;
+        renderWines();
+        updateTotals();
+      });
+
+      socket.on('wines-updated', (data) => {
+        console.log('🔄 Lista de vinos actualizada');
+        wines = data;
+        renderWines();
+        updateTotals();
+      });
+    }
+
+    // Actualizar indicador de estado
+    function updateStatus(status) {
+      const statusEl = document.getElementById('status');
+      const statusText = document.getElementById('status-text');
+
+      statusEl.className = 'status ' + status;
+
+      switch(status) {
+        case 'connected':
+          statusText.textContent = '🟢 Conectado';
+          break;
+        case 'disconnected':
+          statusText.textContent = '🔴 Desconectado';
+          break;
+        case 'reconnecting':
+          statusText.textContent = `🟡 Reconectando... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`;
+          break;
+      }
+    }
+
+    // Renderizar vinos
+    function renderWines() {
+      const grid = document.getElementById('wines-grid');
+
+      if (wines.length === 0) {
+        grid.innerHTML = '<div class="loading">No hay vinos disponibles</div>';
+        return;
+      }
+
+      grid.innerHTML = wines.map(wine => `
+        <div class="wine-card" id="wine-${wine._id}">
+          <div class="wine-name">${wine.name}</div>
+          <div class="counters">
+            <div class="counter glasses">
+              <div class="counter-label">Copas</div>
+              <div class="counter-value">${wine.glass}</div>
+              <div class="counter-buttons">
+                <button class="counter-btn minus" onclick="updateWine('${wine._id}', 'glass', -1)">−</button>
+                <button class="counter-btn plus" onclick="updateWine('${wine._id}', 'glass', 1)">+</button>
+              </div>
+            </div>
+            <div class="counter bottles">
+              <div class="counter-label">Botellas</div>
+              <div class="counter-value">${wine.bottle}</div>
+              <div class="counter-buttons">
+                <button class="counter-btn minus" onclick="updateWine('${wine._id}', 'bottle', -1)">−</button>
+                <button class="counter-btn plus" onclick="updateWine('${wine._id}', 'bottle', 1)">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="wine-total">
+            Total: <span class="wine-total-value">${wine.glass + wine.bottle}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Actualizar una tarjeta de vino específica
+    function updateWineCard(wine) {
+      const card = document.getElementById(`wine-${wine._id}`);
+      if (!card) return;
+
+      const glassValue = card.querySelector('.counter.glasses .counter-value');
+      const bottleValue = card.querySelector('.counter.bottles .counter-value');
+      const totalValue = card.querySelector('.wine-total-value');
+
+      if (glassValue) glassValue.textContent = wine.glass;
+      if (bottleValue) bottleValue.textContent = wine.bottle;
+      if (totalValue) totalValue.textContent = wine.glass + wine.bottle;
+    }
+
+    // Actualizar totales
+    function updateTotals() {
+      const totals = wines.reduce((acc, wine) => {
+        acc.glasses += wine.glass;
+        acc.bottles += wine.bottle;
+        return acc;
+      }, { glasses: 0, bottles: 0 });
+
+      document.getElementById('total-glasses').textContent = totals.glasses;
+      document.getElementById('total-bottles').textContent = totals.bottles;
+      document.getElementById('grand-total').textContent = totals.glasses + totals.bottles;
+    }
+
+    // Actualizar vino (enviar al servidor)
+    async function updateWine(wineId, type, amount) {
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines/${wineId}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, amount })
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al actualizar');
+        }
+
+        // El servidor emitirá el evento de actualización via socket
+      } catch (error) {
+        console.error('Error actualizando vino:', error);
+        alert('Error al actualizar. Por favor, verifica tu conexión.');
+      }
+    }
+
+    // Exportar a CSV
+    function exportCSV() {
+      let csv = 'Vino,Copas,Botellas,Total\n';
+
+      wines.forEach(wine => {
+        const total = wine.glass + wine.bottle;
+        csv += `${wine.name},${wine.glass},${wine.bottle},${total}\n`;
+      });
+
+      const totals = wines.reduce((acc, wine) => {
+        acc.glasses += wine.glass;
+        acc.bottles += wine.bottle;
+        return acc;
+      }, { glasses: 0, bottles: 0 });
+
+      csv += `\nTOTAL,${totals.glasses},${totals.bottles},${totals.glasses + totals.bottles}\n`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+
+      const now = new Date();
+      const filename = `ventas_vinos_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}.csv`;
+
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Mostrar modal de reset
+    function showResetModal() {
+      document.getElementById('reset-modal').classList.add('show');
+    }
+
+    // Ocultar modal de reset
+    function hideResetModal() {
+      document.getElementById('reset-modal').classList.remove('show');
+    }
+
+    // Resetear todos los contadores
+    async function resetAllCounters() {
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines/reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al resetear');
+        }
+
+        hideResetModal();
+        // El servidor emitirá el evento de reset via socket
+      } catch (error) {
+        console.error('Error reseteando contadores:', error);
+        alert('Error al resetear. Por favor, verifica tu conexión.');
+      }
+    }
+
+    // Inicializar aplicación
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 Iniciando aplicación...');
+      initSocket();
+    });
+  </script>
+</body>
+</html>

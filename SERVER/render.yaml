@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: winecounter-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: DB_NAME
+        sync: false

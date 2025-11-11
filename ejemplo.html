@@ -1,0 +1,435 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged,
+  signInWithCustomToken
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  doc, 
+  collection, 
+  onSnapshot, 
+  updateDoc, 
+  increment,
+  getDocs,
+  setDoc,
+  query,
+  limit,
+  setLogLevel
+} from 'firebase/firestore';
+
+// --- Configuración de Firebase ---
+// Estas variables se inyectarán en el entorno de ejecución.
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// --- Datos Iniciales de Vinos ---
+// Nombres para los 10 vinos.
+const WINE_NAMES = [
+  "Malbec",
+  "Cabernet Sauvignon",
+  "Merlot",
+  "Syrah",
+  "Bonarda",
+  "Chardonnay",
+  "Sauvignon Blanc",
+  "Torrontés",
+  "Pinot Noir",
+  "Rosado"
+];
+
+// --- Componente Principal de la App ---
+export default function App() {
+  // Estado de Firebase
+  const [db, setDb] = useState(null);
+  const [auth, setAuth] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  // Estado de la App
+  const [wines, setWines] = useState([]); // Aquí se guardarán los datos de Firestore
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false); // Estado para el modal
+
+  // Ruta de la colección en Firestore (pública para acceso simultáneo)
+  const collectionPath = `artifacts/${appId}/public/data/wines`;
+
+  // 1. Inicialización de Firebase y Autenticación
+  useEffect(() => {
+    try {
+      const app = initializeApp(firebaseConfig);
+      const authInstance = getAuth(app);
+      const dbInstance = getFirestore(app);
+      
+      setLogLevel('Debug'); // Habilita logs detallados de Firestore
+      
+      setAuth(authInstance);
+      setDb(dbInstance);
+
+      // Manejador de estado de autenticación
+      const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+        if (user) {
+          setUserId(user.uid);
+          setIsAuthReady(true);
+        } else {
+          // Si no hay usuario, autenticar
+          try {
+            if (initialAuthToken) {
+              await signInWithCustomToken(authInstance, initialAuthToken);
+            } else {
+              await signInAnonymously(authInstance);
+            }
+          } catch (authError) {
+            console.error("Error en autenticación anónima o token:", authError);
+            setError("Error al autenticar. No se pueden cargar los datos.");
+          }
+        }
+      });
+      return () => unsubscribe(); // Limpiar al desmontar
+    } catch (e) {
+      console.error("Error inicializando Firebase:", e);
+      setError("Error crítico al iniciar la aplicación.");
+    }
+  }, []);
+
+  // 2. Sembrado de Base de Datos (si está vacía) y Suscripción a Datos
+  useEffect(() => {
+    // No hacer nada hasta que la BBDD y la autenticación estén listas
+    if (!isAuthReady || !db) return;
+
+    const winesColRef = collection(db, collectionPath);
+
+    // Función para sembrar la BBDD con los 10 vinos si no existen
+    const seedDatabase = async () => {
+      console.log("Revisando si la base de datos necesita ser sembrada...");
+      try {
+        const q = query(winesColRef, limit(1));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+          console.log("Base de datos vacía. Sembrando vinos...");
+          const promises = WINE_NAMES.map((name, index) => {
+            const wineId = `wine_${index + 1}`; // ID predecible
+            const wineDocRef = doc(db, collectionPath, wineId);
+            return setDoc(wineDocRef, {
+              name: name,
+              glass: 0,
+              bottle: 0
+            });
+          });
+          await Promise.all(promises);
+          console.log("Base de datos sembrada con 10 vinos.");
+        } else {
+          console.log("La base de datos ya contiene datos.");
+        }
+      } catch (e) {
+        console.error("Error al sembrar la base de datos:", e);
+        setError("Error al inicializar los datos de vinos.");
+      }
+    };
+
+    // Suscribirse a los cambios en tiempo real
+    const setupListener = () => {
+      console.log("Configurando el listener en tiempo real...");
+      const unsubscribe = onSnapshot(winesColRef, (snapshot) => {
+        const wineList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Ordenar alfabéticamente para un orden consistente
+        wineList.sort((a, b) => a.name.localeCompare(b.name));
+        
+        setWines(wineList);
+        setLoading(false);
+      }, (err) => {
+        console.error("Error en el listener de onSnapshot:", err);
+        setError("Error al cargar datos en tiempo real.");
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    };
+
+    // Ejecutar sembrado y luego configurar el listener
+    let unsubscribe;
+    seedDatabase().then(() => {
+      unsubscribe = setupListener();
+    });
+
+    // Función de limpieza
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+
+  }, [isAuthReady, db, collectionPath]);
+
+  // 3. Manejadores de Eventos (Incrementar / Decrementar)
+  const handleUpdateCount = async (wineId, type, amount) => {
+    if (!db) return;
+
+    // Prevenir conteos negativos
+    if (amount < 0) {
+      const currentWine = wines.find(w => w.id === wineId);
+      if (!currentWine || currentWine[type] <= 0) {
+        return; // No hacer nada si ya es 0
+      }
+    }
+
+    const docRef = doc(db, collectionPath, wineId);
+    try {
+      // Usamos 'increment' de Firestore para actualizaciones atómicas
+      // Esto previene "race conditions" si dos usuarios clickean al mismo tiempo
+      await updateDoc(docRef, {
+        [type]: increment(amount)
+      });
+      // El listener de onSnapshot actualizará el estado automáticamente
+    } catch (e) {
+      console.error("Error al actualizar el conteo:", e);
+      setError("Error al registrar la venta. Intente de nuevo.");
+    }
+  };
+
+  // 4. Cálculo de Totales (Memoizado para eficiencia)
+  const totals = useMemo(() => {
+    return wines.reduce((acc, wine) => {
+      acc.totalGlass += (wine.glass || 0);
+      acc.totalBottle += (wine.bottle || 0);
+      return acc;
+    }, { totalGlass: 0, totalBottle: 0 });
+  }, [wines]);
+  
+  const grandTotal = totals.totalGlass + totals.totalBottle;
+
+  // 5. Función de Exportar a CSV ("Planilla de datos")
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Vino,Copas,Botellas,Total Vino\n"; // Encabezados
+
+    // Filas de vinos
+    wines.forEach(wine => {
+      const wineTotal = (wine.glass || 0) + (wine.bottle || 0);
+      csvContent += `${wine.name.replace(",", " ")},${wine.glass || 0},${wine.bottle || 0},${wineTotal}\n`;
+    });
+
+    // Fila de totales
+    csvContent += "\n";
+    csvContent += `TOTAL,${totals.totalGlass},${totals.totalBottle},${grandTotal}\n`;
+
+    // Crear y descargar el archivo
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "reporte_ventas_vinos.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 6. Función de Resetear Conteos
+  const handleResetCounts = async () => {
+    if (!db || wines.length === 0) return;
+
+    console.log("Iniciando reseteo de conteos...");
+    // No activo 'setLoading(true)' aquí para que la UI siga interactiva, 
+    // pero cierro el modal. El reseteo se verá en tiempo real.
+    setError(null);
+    setShowResetConfirm(false); // Cerrar el modal
+
+    try {
+      const promises = wines.map(wine => {
+        const docRef = doc(db, collectionPath, wine.id);
+        return updateDoc(docRef, {
+          glass: 0,
+          bottle: 0
+        });
+      });
+      
+      await Promise.all(promises);
+      console.log("Todos los conteos reseteados a 0.");
+    } catch (e) {
+      console.error("Error al resetear los conteos:", e);
+      setError("Ocurrió un error al resetear los conteos.");
+    }
+    // No necesito 'setLoading(false)' porque no lo activé
+  };
+
+
+  // --- Renderizado de la UI ---
+
+  if (loading && !isAuthReady) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="text-center">
+          <svg className="animate-spin h-12 w-12 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-lg font-medium text-gray-700 mt-4">Conectando con la base de datos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Modal de Confirmación ---
+  const ResetConfirmationModal = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+        <h3 className="text-2xl font-bold text-gray-900 mb-4">Confirmar Reseteo</h3>
+        <p className="text-gray-700 mb-8">
+          ¿Estás seguro de que quieres resetear TODOS los conteos a cero? Esta acción no se puede deshacer.
+        </p>
+        <div className="flex justify-end gap-4">
+          <button
+            onClick={() => setShowResetConfirm(false)}
+            className="px-6 py-2 rounded-lg text-gray-700 font-semibold bg-gray-200 hover:bg-gray-300 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleResetCounts}
+            className="px-6 py-2 rounded-lg text-white font-semibold bg-red-600 hover:bg-red-700 shadow-md transition-all"
+          >
+            Sí, Resetear
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-8 font-sans">
+      
+      {/* Renderizar el modal si está activo */}
+      {showResetConfirm && <ResetConfirmationModal />}
+
+      <div className="max-w-7xl mx-auto">
+        
+        {/* --- Encabezado --- */}
+        <header className="text-center mb-6">
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Contador de Vinos</h1>
+          <p className="text-sm text-gray-500 mt-2">ID de Vendedor: <span className="font-mono">{userId}</span></p>
+        </header>
+
+        {/* --- Mensaje de Error --- */}
+        {error && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-md mb-6" role="alert">
+            <p className="font-bold">Error</p>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {/* --- Sección de Totales (La "Planilla") --- */}
+        <section className="bg-white p-6 rounded-2xl shadow-lg mb-8">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Resultados Totales</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center mb-6">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-blue-700">Total Copas</p>
+              <p className="text-4xl font-bold text-blue-900">{totals.totalGlass}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-green-700">Total Botellas</p>
+              <p className="text-4xl font-bold text-green-900">{totals.totalBottle}</p>
+            </div>
+            <div className="bg-gray-800 text-white p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-300">Total General (Items)</p>
+              <p className="text-4xl font-bold">{grandTotal}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              onClick={handleExportCSV}
+              className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-all duration-200"
+            >
+              Descargar Planilla (CSV)
+            </button>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="w-full bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-all duration-200"
+            >
+              Resetear Conteos a Cero
+            </button>
+          </div>
+        </section>
+
+        {/* --- Lista de Vinos (Contadores) --- */}
+        <section>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Vinos</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            {wines.map((wine) => (
+              <div key={wine.id} className="bg-white p-6 rounded-2xl shadow-lg flex flex-col transform transition-all duration-300 hover:shadow-xl">
+                {/* Nombre del Vino */}
+                <h3 className="text-2xl font-bold text-gray-900 text-center mb-5">{wine.name}</h3>
+                
+                {/* Contadores */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  {/* Contador de Copas */}
+                  <div className="text-center">
+                    <p className="text-lg font-semibold text-gray-600 mb-2">Copas</p>
+                    <p className="text-5xl font-extrabold text-blue-800 mb-3">{wine.glass}</p>
+                    <div className="flex justify-center gap-2">
+                      <button
+                        onClick={() => handleUpdateCount(wine.id, 'glass', -1)}
+                        aria-label={`Quitar 1 copa de ${wine.name}`}
+                        className="w-12 h-12 bg-red-500 text-white rounded-full text-2xl font-bold shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 active:bg-red-700 transition-all"
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => handleUpdateCount(wine.id, 'glass', 1)}
+                        aria-label={`Añadir 1 copa de ${wine.name}`}
+                        className="w-12 h-12 bg-green-500 text-white rounded-full text-2xl font-bold shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 active:bg-green-700 transition-all"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Contador de Botellas */}
+                  <div className="text-center">
+                    <p className="text-lg font-semibold text-gray-600 mb-2">Botellas</p>
+                    <p className="text-5xl font-extrabold text-green-800 mb-3">{wine.bottle}</p>
+                    <div className="flex justify-center gap-2">
+                      <button
+                        onClick={() => handleUpdateCount(wine.id, 'bottle', -1)}
+                        aria-label={`Quitar 1 botella de ${wine.name}`}
+                        className="w-12 h-12 bg-red-500 text-white rounded-full text-2xl font-bold shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 active:bg-red-700 transition-all"
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => handleUpdateCount(wine.id, 'bottle', 1)}
+                        aria-label={`Añadir 1 botella de ${wine.name}`}
+                        className="w-12 h-12 bg-green-500 text-white rounded-full text-2xl font-bold shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 active:bg-green-700 transition-all"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Total por Vino */}
+                <div className="mt-auto pt-4 border-t border-gray-200 text-center">
+                  <p className="text-md font-semibold text-gray-700">
+                    Total (Items) {wine.name}:
+                    <span className="ml-2 text-xl font-bold text-gray-900">
+                      {(wine.glass || 0) + (wine.bottle || 0)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            ))}
+            
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

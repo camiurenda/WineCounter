@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administración de Vinos</title>
+  <script src="config.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .header h1 {
+      color: #2d3748;
+      font-size: 1.8em;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: #4299e1;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #3182ce;
+    }
+
+    .btn-secondary {
+      background: #718096;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #4a5568;
+    }
+
+    .btn-success {
+      background: #48bb78;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #38a169;
+    }
+
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #e53e3e;
+    }
+
+    .btn-warning {
+      background: #ed8936;
+      color: white;
+    }
+
+    .btn-warning:hover {
+      background: #dd6b20;
+    }
+
+    .main-content {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-header h2 {
+      color: #2d3748;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 10px;
+    }
+
+    .filter-tab {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: #718096;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .filter-tab.active {
+      color: #4299e1;
+      border-bottom-color: #4299e1;
+    }
+
+    .wines-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .wines-table th {
+      background: #f7fafc;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      color: #2d3748;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .wines-table td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #4a5568;
+    }
+
+    .wines-table tr:hover {
+      background: #f7fafc;
+    }
+
+    .wines-table tr.inactive {
+      opacity: 0.6;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85em;
+      font-weight: 600;
+    }
+
+    .status-badge.active {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .status-badge.inactive {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .actions-cell {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 0.85em;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #718096;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .modal h3 {
+      color: #2d3748;
+      margin-bottom: 20px;
+      font-size: 1.5em;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      color: #4a5568;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 1em;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #4299e1;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #718096;
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        text-align: center;
+      }
+
+      .header h1 {
+        width: 100%;
+        font-size: 1.5em;
+      }
+
+      .wines-table {
+        font-size: 0.9em;
+      }
+
+      .actions-cell {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>Administración de Vinos</h1>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn-success" onclick="showCreateModal()">+ Nuevo Vino</button>
+        <a href="index.html" class="btn btn-secondary">Volver al Contador</a>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="section-header">
+        <h2>Lista de Vinos</h2>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterWines('all')">Todos</button>
+        <button class="filter-tab" onclick="filterWines('active')">Activos</button>
+        <button class="filter-tab" onclick="filterWines('inactive')">Inactivos</button>
+      </div>
+
+      <!-- Wines Table -->
+      <div id="wines-container">
+        <div class="loading">Cargando vinos...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Wine Modal -->
+  <div class="modal" id="create-modal">
+    <div class="modal-content">
+      <h3>Nuevo Vino</h3>
+      <form onsubmit="createWine(event)">
+        <div class="form-group">
+          <label for="new-wine-name">Nombre del Vino</label>
+          <input type="text" id="new-wine-name" required placeholder="Ej: Malbec Reserva">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Cancelar</button>
+          <button type="submit" class="btn btn-success">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Wine Modal -->
+  <div class="modal" id="edit-modal">
+    <div class="modal-content">
+      <h3>Editar Vino</h3>
+      <form onsubmit="updateWine(event)">
+        <input type="hidden" id="edit-wine-id">
+        <div class="form-group">
+          <label for="edit-wine-name">Nombre del Vino</label>
+          <input type="text" id="edit-wine-name" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="hideEditModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal" id="delete-modal">
+    <div class="modal-content">
+      <h3>Confirmar Baja</h3>
+      <p>¿Estás seguro de que quieres dar de baja el vino "<strong id="delete-wine-name"></strong>"?</p>
+      <p style="color: #718096; font-size: 0.9em; margin-top: 10px;">Este vino dejará de mostrarse en el contador, pero sus datos se mantendrán en el sistema.</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="hideDeleteModal()">Cancelar</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Dar de Baja</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reactivate Confirmation Modal -->
+  <div class="modal" id="reactivate-modal">
+    <div class="modal-content">
+      <h3>Reactivar Vino</h3>
+      <p>¿Quieres reactivar el vino "<strong id="reactivate-wine-name"></strong>"?</p>
+      <p style="color: #718096; font-size: 0.9em; margin-top: 10px;">El vino volverá a mostrarse en el contador.</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="hideReactivateModal()">Cancelar</button>
+        <button class="btn btn-success" onclick="confirmReactivate()">Reactivar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let wines = [];
+    let currentFilter = 'all';
+    let wineToDelete = null;
+    let wineToReactivate = null;
+
+    // Load wines on page load
+    window.addEventListener('DOMContentLoaded', loadWines);
+
+    async function loadWines() {
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines/admin`);
+        if (!response.ok) throw new Error('Error al cargar vinos');
+        wines = await response.json();
+        renderWines();
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('wines-container').innerHTML =
+          '<div class="empty-state">Error al cargar los vinos. Por favor, recarga la página.</div>';
+      }
+    }
+
+    function filterWines(filter) {
+      currentFilter = filter;
+
+      // Update active tab
+      document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      renderWines();
+    }
+
+    function getFilteredWines() {
+      if (currentFilter === 'active') {
+        return wines.filter(w => w.active);
+      } else if (currentFilter === 'inactive') {
+        return wines.filter(w => !w.active);
+      }
+      return wines;
+    }
+
+    function renderWines() {
+      const container = document.getElementById('wines-container');
+      const filteredWines = getFilteredWines();
+
+      if (filteredWines.length === 0) {
+        container.innerHTML = '<div class="empty-state">No hay vinos para mostrar</div>';
+        return;
+      }
+
+      const tableHTML = `
+        <table class="wines-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Copas</th>
+              <th>Botellas</th>
+              <th>Total</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredWines.map(wine => `
+              <tr class="${wine.active ? '' : 'inactive'}">
+                <td><strong>${wine.name}</strong></td>
+                <td>${wine.glass}</td>
+                <td>${wine.bottle}</td>
+                <td>${wine.glass + wine.bottle}</td>
+                <td>
+                  <span class="status-badge ${wine.active ? 'active' : 'inactive'}">
+                    ${wine.active ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
+                <td>
+                  <div class="actions-cell">
+                    <button class="btn btn-primary btn-small" onclick="showEditModal('${wine._id}', '${wine.name}')">
+                      Editar
+                    </button>
+                    ${wine.active ? `
+                      <button class="btn btn-danger btn-small" onclick="showDeleteModal('${wine._id}', '${wine.name}')">
+                        Dar de Baja
+                      </button>
+                    ` : `
+                      <button class="btn btn-success btn-small" onclick="showReactivateModal('${wine._id}', '${wine.name}')">
+                        Reactivar
+                      </button>
+                    `}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      container.innerHTML = tableHTML;
+    }
+
+    // Create Wine Modal
+    function showCreateModal() {
+      document.getElementById('create-modal').classList.add('show');
+      document.getElementById('new-wine-name').value = '';
+      document.getElementById('new-wine-name').focus();
+    }
+
+    function hideCreateModal() {
+      document.getElementById('create-modal').classList.remove('show');
+    }
+
+    async function createWine(event) {
+      event.preventDefault();
+      const name = document.getElementById('new-wine-name').value.trim();
+
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.error || 'Error al crear el vino');
+          return;
+        }
+
+        hideCreateModal();
+        await loadWines();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al crear el vino. Por favor, intenta de nuevo.');
+      }
+    }
+
+    // Edit Wine Modal
+    function showEditModal(id, name) {
+      document.getElementById('edit-wine-id').value = id;
+      document.getElementById('edit-wine-name').value = name;
+      document.getElementById('edit-modal').classList.add('show');
+      document.getElementById('edit-wine-name').focus();
+    }
+
+    function hideEditModal() {
+      document.getElementById('edit-modal').classList.remove('show');
+    }
+
+    async function updateWine(event) {
+      event.preventDefault();
+      const id = document.getElementById('edit-wine-id').value;
+      const name = document.getElementById('edit-wine-name').value.trim();
+
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.error || 'Error al actualizar el vino');
+          return;
+        }
+
+        hideEditModal();
+        await loadWines();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al actualizar el vino. Por favor, intenta de nuevo.');
+      }
+    }
+
+    // Delete Wine Modal
+    function showDeleteModal(id, name) {
+      wineToDelete = id;
+      document.getElementById('delete-wine-name').textContent = name;
+      document.getElementById('delete-modal').classList.add('show');
+    }
+
+    function hideDeleteModal() {
+      document.getElementById('delete-modal').classList.remove('show');
+      wineToDelete = null;
+    }
+
+    async function confirmDelete() {
+      if (!wineToDelete) return;
+
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines/${wineToDelete}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          alert(data.error || 'Error al dar de baja el vino');
+          return;
+        }
+
+        hideDeleteModal();
+        await loadWines();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al dar de baja el vino. Por favor, intenta de nuevo.');
+      }
+    }
+
+    // Reactivate Wine Modal
+    function showReactivateModal(id, name) {
+      wineToReactivate = id;
+      document.getElementById('reactivate-wine-name').textContent = name;
+      document.getElementById('reactivate-modal').classList.add('show');
+    }
+
+    function hideReactivateModal() {
+      document.getElementById('reactivate-modal').classList.remove('show');
+      wineToReactivate = null;
+    }
+
+    async function confirmReactivate() {
+      if (!wineToReactivate) return;
+
+      try {
+        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+        const response = await fetch(`${baseUrl}/api/wines/${wineToReactivate}/reactivate`, {
+          method: 'PUT'
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          alert(data.error || 'Error al reactivar el vino');
+          return;
+        }
+
+        hideReactivateModal();
+        await loadWines();
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al reactivar el vino. Por favor, intenta de nuevo.');
+      }
+    }
+  </script>
+</body>
+</html>

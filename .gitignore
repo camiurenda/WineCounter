@@ -1,0 +1,31 @@
+# Dependencies
+SERVER/node_modules/
+CLIENT/node_modules/
+node_modules/
+
+# Environment variables
+SERVER/.env
+CLIENT/.env
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Build outputs
+dist/
+build/
