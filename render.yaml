@@ -2,6 +2,7 @@ services:
   - type: web
     name: winecounter-api
     runtime: node
+    rootDirectory: SERVER
     buildCommand: npm install
     startCommand: npm start
     envVars:
