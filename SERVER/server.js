@@ -380,6 +380,9 @@ io.on('connection', (socket) => {
         { returnDocument: 'after' }
       );
 
+      console.log(`🔍 [${socket.id}] Resultado de findOneAndUpdate:`, result);
+      console.log(`🔍 [${socket.id}] result.value existe?`, !!result.value);
+
       if (result.value) {
         console.log(`✅ [${socket.id}] Vino actualizado en DB: ${result.value.name} | ${type}: ${result.value[type]}`);
 
@@ -388,6 +391,8 @@ io.on('connection', (socket) => {
         console.log(`📤 [BROADCAST] Emitiendo wines-updated a ${io.engine.clientsCount} clientes conectados`);
         io.emit('wines-updated', allWines);
         console.log(`✅ [BROADCAST] wines-updated emitido correctamente`);
+      } else {
+        console.error(`❌ [${socket.id}] result.value es NULL - no se pudo actualizar el vino`);
       }
     } catch (error) {
       console.error(`❌ [${socket.id}] Error en socket update-wine:`, error);
