@@ -497,10 +497,16 @@
 
       // Evento unificado para cualquier actualización de la lista de vinos
       socket.on('wines-updated', (data) => {
-        console.log(`📦 Datos de vinos recibidos/actualizados: ${data.length} vinos.`);
+        console.log(`📦 [RECIBIDO] wines-updated con ${data.length} vinos`);
+        console.log(`   Socket ID: ${socket.id}`);
+        console.log(`   Vinos actuales antes de actualizar:`, wines.map(w => `${w.name}: ${w.glass}g/${w.bottle}b`));
+
         wines = data;
         renderWines();
         updateTotals();
+
+        console.log(`✅ [APLICADO] Vinos actualizados en el UI`);
+        console.log(`   Vinos después de actualizar:`, wines.map(w => `${w.name}: ${w.glass}g/${w.bottle}b`));
       });
     }
 
@@ -611,8 +617,16 @@
 
       const wine = wines.find(w => w._id === wineId);
       if (wine) {
-        console.log(`📤 Enviando actualización: ${wine.name} - ${type} ${amount > 0 ? '+' : ''}${amount}`);
+        console.log(`📤 [ENVIANDO] update-wine`);
+        console.log(`   Socket ID: ${socket.id}`);
+        console.log(`   Vino: ${wine.name}`);
+        console.log(`   Tipo: ${type}`);
+        console.log(`   Cantidad: ${amount > 0 ? '+' : ''}${amount}`);
+        console.log(`   Valor actual: ${wine[type]}`);
+
         socket.emit('update-wine', { wineId, type, amount });
+
+        console.log(`✅ [EMITIDO] Evento update-wine enviado al servidor`);
       } else {
         console.error(`❌ Vino no encontrado: ${wineId}`);
       }

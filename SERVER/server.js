@@ -34,7 +34,9 @@ const io = socketIo(server, {
   pingTimeout: 60000,
   pingInterval: 25000,
   transports: ['websocket', 'polling'],
-  allowEIO3: true // Compatibilidad con versiones antiguas
+  allowEIO3: true, // Compatibilidad con versiones antiguas
+  cookie: false, // Importante para múltiples instancias en Render
+  serveClient: false // No servir el cliente Socket.IO desde el servidor
 });
 
 // Middleware
@@ -343,25 +345,29 @@ app.put('/api/wines/:id/reactivate', async (req, res) => {
 // === WEBSOCKETS ===
 
 io.on('connection', (socket) => {
-  console.log(`🔌 Cliente conectado: ${socket.id}`);
+  console.log(`🔌 Cliente conectado: ${socket.id} | Transport: ${socket.conn.transport.name}`);
 
   // Enviar datos actuales al conectarse (solo vinos activos)
   winesCollection.find({ active: true }).sort({ name: 1 }).toArray()
     .then(initialWines => {
+      console.log(`📤 [${socket.id}] Enviando ${initialWines.length} vinos iniciales`);
       socket.emit('wines-updated', initialWines);
     })
     .catch(err => console.error('Error enviando datos iniciales:', err));
 
   // Listener para actualizar un vino
   socket.on('update-wine', async ({ wineId, type, amount }) => {
+    console.log(`📥 [${socket.id}] Recibido update-wine: ${wineId} | ${type} ${amount > 0 ? '+' : ''}${amount}`);
+
     try {
       // Prevenir valores negativos
       const currentWine = await winesCollection.findOne({ _id: wineId });
       if (!currentWine) {
-        console.warn(`⚠️ Intento de actualizar vino no existente: ${wineId}`);
+        console.warn(`⚠️ [${socket.id}] Intento de actualizar vino no existente: ${wineId}`);
         return;
       }
       if (amount < 0 && currentWine[type] <= 0) {
+        console.log(`⏭️ [${socket.id}] Ignorando decremento, ya es 0: ${currentWine.name}`);
         return; // No hacer nada si ya es 0
       }
 
@@ -375,13 +381,16 @@ io.on('connection', (socket) => {
       );
 
       if (result.value) {
-        console.log(`[Socket] ✅ Vino actualizado: ${result.value.name} (${type})`);
+        console.log(`✅ [${socket.id}] Vino actualizado en DB: ${result.value.name} | ${type}: ${result.value[type]}`);
+
         // Emitir la lista completa actualizada a todos los clientes
         const allWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
+        console.log(`📤 [BROADCAST] Emitiendo wines-updated a ${io.engine.clientsCount} clientes conectados`);
         io.emit('wines-updated', allWines);
+        console.log(`✅ [BROADCAST] wines-updated emitido correctamente`);
       }
     } catch (error) {
-      console.error('❌ Error en socket update-wine:', error);
+      console.error(`❌ [${socket.id}] Error en socket update-wine:`, error);
     }
   });
 
