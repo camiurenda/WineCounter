@@ -494,6 +494,14 @@
         console.error('   URL intentada:', socketUrl);
         console.error('   Transport actual:', socket.io.engine ? socket.io.engine.transport.name : 'none');
       });
+
+      // Evento unificado para cualquier actualización de la lista de vinos
+      socket.on('wines-updated', (data) => {
+        console.log(`📦 Datos de vinos recibidos/actualizados: ${data.length} vinos.`);
+        wines = data;
+        renderWines();
+        updateTotals();
+      });
     }
 
     // Actualizar indicador de estado
@@ -677,14 +685,6 @@
     window.addEventListener('DOMContentLoaded', () => {
       console.log('🚀 Iniciando aplicación...');
       initSocket();
-
-      // Evento unificado para cualquier actualización de la lista de vinos
-      socket.on('wines-updated', (data) => {
-        console.log(`📦 Datos de vinos recibidos/actualizados: ${data.length} vinos.`);
-        wines = data;
-        renderWines();
-        updateTotals();
-      });
     });
   </script>
 </body>
