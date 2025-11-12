@@ -9,9 +9,14 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production'
-      ? ["https://winecounter.vercel.app", "https://*.vercel.app"]
-      : "*",
+    origin: (origin, callback) => {
+      // Permitir localhost y cualquier dominio de vercel.app
+      if (!origin || origin.includes('localhost') || origin.includes('.vercel.app')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -21,9 +26,14 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ["https://winecounter.vercel.app", "https://*.vercel.app"]
-    : "*",
+  origin: (origin, callback) => {
+    // Permitir localhost y cualquier dominio de vercel.app
+    if (!origin || origin.includes('localhost') || origin.includes('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
