@@ -625,13 +625,18 @@
         });
 
         if (!response.ok) {
-          throw new Error('Error al actualizar');
+          const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+          // Si es un 404, es probable que el vino no exista en el backend (desincronización)
+          if (response.status === 404) {
+            console.warn('⚠️ Error 404: Vino no encontrado en el servidor. Solicitando sincronización...');
+            socket.emit('request-sync');
+          }
+          throw new Error(errorData.error || 'Error al actualizar');
         }
 
         const data = await response.json();
         console.log('✅ Respuesta del servidor:', data);
 
-        // El servidor emitirá el evento de actualización via socket
       } catch (error) {
         console.error('Error actualizando vino:', error);
         alert('Error al actualizar. Por favor, verifica tu conexión.');
