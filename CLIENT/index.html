@@ -478,14 +478,6 @@
         alert('No se pudo reconectar al servidor. Por favor, recarga la página.');
       });
 
-      // Evento unificado para cualquier actualización de la lista de vinos
-      socket.on('wines-updated', (data) => {
-        console.log(`📦 Datos de vinos recibidos/actualizados: ${data.length} vinos.`);
-        wines = data;
-        renderWines();
-        updateTotals();
-      });
-
       socket.on('connect_error', (err) => {
         console.error('❌ Error de conexión de socket:', err.message);
       });
@@ -500,7 +492,7 @@
 
       switch(status) {
         case 'connected':
-          statusText.textContent = 'Conectado';
+          statusText.textContent = '🟢 Conectado';
           break;
         case 'disconnected':
           statusText.textContent = 'Desconectado';
@@ -576,34 +568,14 @@
     }
 
     // Actualizar vino (enviar al servidor)
-    async function updateWine(wineId, type, amount) {
-      try {
+    function updateWine(wineId, type, amount) {
+      if (socket && socket.connected) {
         const wine = wines.find(w => w._id === wineId);
-        console.log(`📤 Enviando actualización: ${wine ? wine.name : wineId} - ${type} ${amount > 0 ? '+' : ''}${amount}`);
-
-        const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
-        const response = await fetch(`${baseUrl}/api/wines/${wineId}/update`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, amount })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
-          // Si es un 404, es probable que el vino no exista en el backend (desincronización)
-          if (response.status === 404) {
-            console.warn('⚠️ Error 404: Vino no encontrado en el servidor. Solicitando sincronización...');
-            socket.emit('request-sync');
-          }
-          throw new Error(errorData.error || 'Error al actualizar');
-        }
-
-        const data = await response.json();
-        console.log('✅ Respuesta del servidor:', data);
-
-      } catch (error) {
-        console.error('Error actualizando vino:', error);
-        alert('Error al actualizar. Por favor, verifica tu conexión.');
+        console.log(`📤 Enviando: ${wine.name} - ${type} ${amount > 0 ? '+' : ''}${amount}`);
+        socket.emit('update-wine', { wineId, type, amount });
+      } else {
+        console.error('❌ No se puede actualizar: Socket no conectado.');
+        alert('No estás conectado al servidor. La acción no se registró.');
       }
     }
 
@@ -674,6 +646,14 @@
     window.addEventListener('DOMContentLoaded', () => {
       console.log('🚀 Iniciando aplicación...');
       initSocket();
+
+      // Evento unificado para cualquier actualización de la lista de vinos
+      socket.on('wines-updated', (data) => {
+        console.log(`📦 Datos de vinos recibidos/actualizados: ${data.length} vinos.`);
+        wines = data;
+        renderWines();
+        updateTotals();
+      });
     });
   </script>
 </body>

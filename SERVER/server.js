@@ -129,45 +129,6 @@ app.get('/api/wines', async (req, res) => {
   }
 });
 
-// Resetear todos los contadores a cero (solo vinos activos)
-app.post('/api/wines/reset', async (req, res) => {
-  try {
-    await winesCollection.updateMany(
-      { active: true },
-      {
-        $set: {
-          glass: 0,
-          bottle: 0,
-          lastUpdated: new Date()
-        }
-      }
-    );
-
-    const wines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
-
-    // Notificar a todos los clientes del reset
-    io.emit('wines-updated', wines);
-
-    res.json({ message: 'Contadores reseteados', wines });
-  } catch (error) {
-    console.error('Error reseteando contadores:', error);
-    res.status(500).json({ error: 'Error reseteando contadores' });
-  }
-});
-
-// === RUTAS ABM DE VINOS ===
-
-// Obtener todos los vinos (incluyendo inactivos) para administración
-app.get('/api/wines/admin', async (req, res) => {
-  try {
-    const wines = await winesCollection.find({}).sort({ name: 1 }).toArray();
-    res.json(wines);
-  } catch (error) {
-    console.error('Error obteniendo vinos:', error);
-    res.status(500).json({ error: 'Error obteniendo vinos' });
-  }
-});
-
 // Crear nuevo vino
 app.post('/api/wines', async (req, res) => {
   try {
@@ -204,6 +165,45 @@ app.post('/api/wines', async (req, res) => {
   } catch (error) {
     console.error('Error creando vino:', error);
     res.status(500).json({ error: 'Error creando vino' });
+  }
+});
+
+// Resetear todos los contadores a cero (solo vinos activos)
+app.post('/api/wines/reset', async (req, res) => {
+  try {
+    await winesCollection.updateMany(
+      { active: true },
+      {
+        $set: {
+          glass: 0,
+          bottle: 0,
+          lastUpdated: new Date()
+        }
+      }
+    );
+
+    const wines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
+
+    // Notificar a todos los clientes del reset
+    io.emit('wines-updated', wines);
+
+    res.json({ message: 'Contadores reseteados', wines });
+  } catch (error) {
+    console.error('Error reseteando contadores:', error);
+    res.status(500).json({ error: 'Error reseteando contadores' });
+  }
+});
+
+// === RUTAS ABM DE VINOS ===
+
+// Obtener todos los vinos (incluyendo inactivos) para administración
+app.get('/api/wines/admin', async (req, res) => {
+  try {
+    const wines = await winesCollection.find({}).sort({ name: 1 }).toArray();
+    res.json(wines);
+  } catch (error) {
+    console.error('Error obteniendo vinos:', error);
+    res.status(500).json({ error: 'Error obteniendo vinos' });
   }
 });
 
