@@ -252,7 +252,7 @@ app.put('/api/wines/:id', async (req, res) => {
       return res.status(400).json({ error: 'Ya existe un vino con ese nombre' });
     }
 
-    const result = await winesCollection.findOneAndUpdate(
+    const updatedWine = await winesCollection.findOneAndUpdate(
       { _id: id },
       {
         $set: {
@@ -263,17 +263,17 @@ app.put('/api/wines/:id', async (req, res) => {
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updatedWine) {
       return res.status(404).json({ error: 'Vino no encontrado' });
     }
 
     // Notificar a todos los clientes si el vino está activo
-    if (result.value.active) {
+    if (updatedWine.active) {
       const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
       io.emit('wines-updated', activeWines);
     }
 
-    res.json(result.value);
+    res.json(updatedWine);
   } catch (error) {
     console.error('Error editando vino:', error);
     res.status(500).json({ error: 'Error editando vino' });
@@ -285,7 +285,7 @@ app.delete('/api/wines/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await winesCollection.findOneAndUpdate(
+    const updatedWine = await winesCollection.findOneAndUpdate(
       { _id: id },
       {
         $set: {
@@ -296,7 +296,7 @@ app.delete('/api/wines/:id', async (req, res) => {
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updatedWine) {
       return res.status(404).json({ error: 'Vino no encontrado' });
     }
 
@@ -304,7 +304,7 @@ app.delete('/api/wines/:id', async (req, res) => {
     const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
     io.emit('wines-updated', activeWines);
 
-    res.json({ message: 'Vino dado de baja exitosamente', wine: result.value });
+    res.json({ message: 'Vino dado de baja exitosamente', wine: updatedWine });
   } catch (error) {
     console.error('Error dando de baja vino:', error);
     res.status(500).json({ error: 'Error dando de baja vino' });
@@ -316,7 +316,7 @@ app.put('/api/wines/:id/reactivate', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await winesCollection.findOneAndUpdate(
+    const updatedWine = await winesCollection.findOneAndUpdate(
       { _id: id },
       {
         $set: {
@@ -327,7 +327,7 @@ app.put('/api/wines/:id/reactivate', async (req, res) => {
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updatedWine) {
       return res.status(404).json({ error: 'Vino no encontrado' });
     }
 
@@ -335,7 +335,7 @@ app.put('/api/wines/:id/reactivate', async (req, res) => {
     const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
     io.emit('wines-updated', activeWines);
 
-    res.json({ message: 'Vino reactivado exitosamente', wine: result.value });
+    res.json({ message: 'Vino reactivado exitosamente', wine: updatedWine });
   } catch (error) {
     console.error('Error reactivando vino:', error);
     res.status(500).json({ error: 'Error reactivando vino' });
@@ -371,7 +371,7 @@ io.on('connection', (socket) => {
         return; // No hacer nada si ya es 0
       }
 
-      const result = await winesCollection.findOneAndUpdate(
+      const updatedWine = await winesCollection.findOneAndUpdate(
         { _id: wineId },
         {
           $inc: { [type]: amount },
@@ -380,11 +380,10 @@ io.on('connection', (socket) => {
         { returnDocument: 'after' }
       );
 
-      console.log(`🔍 [${socket.id}] Resultado de findOneAndUpdate:`, result);
-      console.log(`🔍 [${socket.id}] result.value existe?`, !!result.value);
+      console.log(`🔍 [${socket.id}] Resultado de findOneAndUpdate:`, updatedWine);
 
-      if (result.value) {
-        console.log(`✅ [${socket.id}] Vino actualizado en DB: ${result.value.name} | ${type}: ${result.value[type]}`);
+      if (updatedWine) {
+        console.log(`✅ [${socket.id}] Vino actualizado en DB: ${updatedWine.name} | ${type}: ${updatedWine[type]}`);
 
         // Emitir la lista completa actualizada a todos los clientes
         const allWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
@@ -392,7 +391,7 @@ io.on('connection', (socket) => {
         io.emit('wines-updated', allWines);
         console.log(`✅ [BROADCAST] wines-updated emitido correctamente`);
       } else {
-        console.error(`❌ [${socket.id}] result.value es NULL - no se pudo actualizar el vino`);
+        console.error(`❌ [${socket.id}] No se pudo actualizar el vino - resultado es NULL`);
       }
     } catch (error) {
       console.error(`❌ [${socket.id}] Error en socket update-wine:`, error);
