@@ -481,6 +481,7 @@
       // Eventos de datos
       socket.on('initial-data', (data) => {
         console.log('📦 Datos iniciales recibidos:', data.length, 'vinos');
+        console.log('IDs de vinos:', data.map(w => ({ id: w._id, name: w.name })));
         wines = data;
         renderWines();
         updateTotals();
