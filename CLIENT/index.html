@@ -478,52 +478,16 @@
         alert('No se pudo reconectar al servidor. Por favor, recarga la página.');
       });
 
-      // Eventos de datos
-      socket.on('initial-data', (data) => {
-        console.log('📦 Datos iniciales recibidos:', data.length, 'vinos');
-        console.log('IDs de vinos:', data.map(w => ({ id: w._id, name: w.name })));
+      // Evento unificado para cualquier actualización de la lista de vinos
+      socket.on('wines-updated', (data) => {
+        console.log(`📦 Datos de vinos recibidos/actualizados: ${data.length} vinos.`);
         wines = data;
         renderWines();
         updateTotals();
       });
 
-      socket.on('wine-updated', (updatedWine) => {
-        if (!updatedWine) {
-          console.error('❌ Recibido vino null en wine-updated');
-          return;
-        }
-        console.log('🔄 Vino actualizado:', updatedWine.name, 'Copas:', updatedWine.glass, 'Botellas:', updatedWine.bottle);
-        const index = wines.findIndex(w => w._id === updatedWine._id);
-        if (index !== -1) {
-          wines[index] = updatedWine;
-          updateWineCard(updatedWine);
-          updateTotals();
-        } else {
-          // Si el vino no existe, es probable que sea uno nuevo, así que volvemos a renderizar todo.
-          console.log('📦 Recibido nuevo vino, actualizando lista completa.');
-          socket.emit('request-sync'); // Pedir la lista completa al servidor
-        }
-      });
-
-      socket.on('wines-reset', (data) => {
-        console.log('🔄 Todos los contadores reseteados');
-        wines = data;
-        renderWines();
-        updateTotals();
-      });
-
-      socket.on('sync-data', (data) => {
-        console.log('🔄 Datos sincronizados');
-        wines = data;
-        renderWines();
-        updateTotals();
-      });
-
-      socket.on('wines-list-updated', (data) => {
-        console.log('🔄 Lista de vinos actualizada');
-        wines = data;
-        renderWines();
-        updateTotals();
+      socket.on('connect_error', (err) => {
+        console.error('❌ Error de conexión de socket:', err.message);
       });
     }
 
@@ -536,10 +500,10 @@
 
       switch(status) {
         case 'connected':
-          statusText.textContent = '🟢 Conectado';
+          statusText.textContent = 'Conectado';
           break;
         case 'disconnected':
-          statusText.textContent = '🔴 Desconectado';
+          statusText.textContent = 'Desconectado';
           break;
         case 'reconnecting':
           statusText.textContent = `🟡 Reconectando... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`;
