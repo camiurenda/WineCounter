@@ -165,6 +165,12 @@ app.post('/api/wines/:id/update', async (req, res) => {
       { returnDocument: 'after' }
     );
 
+    if (!result.value) {
+      return res.status(404).json({ error: 'Vino no encontrado después de actualizar' });
+    }
+
+    console.log(`📊 Vino actualizado: ${result.value.name} - ${type}: ${result.value[type]}`);
+
     // Emitir actualización en tiempo real a todos los clientes
     io.emit('wine-updated', result.value);
 

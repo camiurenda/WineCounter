@@ -487,12 +487,18 @@
       });
 
       socket.on('wine-updated', (updatedWine) => {
-        console.log('🔄 Vino actualizado:', updatedWine.name);
+        if (!updatedWine) {
+          console.error('❌ Recibido vino null en wine-updated');
+          return;
+        }
+        console.log('🔄 Vino actualizado:', updatedWine.name, 'Copas:', updatedWine.glass, 'Botellas:', updatedWine.bottle);
         const index = wines.findIndex(w => w._id === updatedWine._id);
         if (index !== -1) {
           wines[index] = updatedWine;
           updateWineCard(updatedWine);
           updateTotals();
+        } else {
+          console.warn('⚠️ Vino no encontrado en array local:', updatedWine._id);
         }
       });
 
@@ -605,6 +611,9 @@
     // Actualizar vino (enviar al servidor)
     async function updateWine(wineId, type, amount) {
       try {
+        const wine = wines.find(w => w._id === wineId);
+        console.log(`📤 Enviando actualización: ${wine ? wine.name : wineId} - ${type} ${amount > 0 ? '+' : ''}${amount}`);
+
         const baseUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
         const response = await fetch(`${baseUrl}/api/wines/${wineId}/update`, {
           method: 'POST',
@@ -615,6 +624,9 @@
         if (!response.ok) {
           throw new Error('Error al actualizar');
         }
+
+        const data = await response.json();
+        console.log('✅ Respuesta del servidor:', data);
 
         // El servidor emitirá el evento de actualización via socket
       } catch (error) {
