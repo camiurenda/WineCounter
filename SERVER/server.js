@@ -10,27 +10,50 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: (origin, callback) => {
-      // Permitir localhost y cualquier dominio de vercel.app
-      if (!origin || origin.includes('localhost') || origin.includes('.vercel.app')) {
+      // Permitir localhost, dominios de vercel.app y el dominio específico
+      const allowedOrigins = [
+        'http://localhost:5500',
+        'http://localhost:3000',
+        'https://wine-counter.vercel.app'
+      ];
+
+      if (!origin ||
+          allowedOrigins.includes(origin) ||
+          origin.includes('localhost') ||
+          origin.includes('.vercel.app')) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        console.warn(`⚠️ CORS bloqueado para origen: ${origin}`);
+        callback(null, false);
       }
     },
     methods: ["GET", "POST"],
     credentials: true
   },
-  pingTimeout: 60000, // Para conexiones lentas
-  pingInterval: 25000
+  path: '/socket.io/',
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
+  allowEIO3: true // Compatibilidad con versiones antiguas
 });
 
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir localhost y cualquier dominio de vercel.app
-    if (!origin || origin.includes('localhost') || origin.includes('.vercel.app')) {
+    // Permitir localhost, dominios de vercel.app y el dominio específico
+    const allowedOrigins = [
+      'http://localhost:5500',
+      'http://localhost:3000',
+      'https://wine-counter.vercel.app'
+    ];
+
+    if (!origin ||
+        allowedOrigins.includes(origin) ||
+        origin.includes('localhost') ||
+        origin.includes('.vercel.app')) {
       callback(null, true);
     } else {
+      console.warn(`⚠️ HTTP CORS bloqueado para origen: ${origin}`);
       callback(null, false);
     }
   },

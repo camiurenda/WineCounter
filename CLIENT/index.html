@@ -445,20 +445,31 @@
     // Configuración del socket
     function initSocket() {
       const socketUrl = window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
+      console.log(`🔌 Iniciando Socket.IO con URL: ${socketUrl}`);
+
       socket = io(socketUrl, {
+        path: '/socket.io/',
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
         timeout: 20000,
-        transports: ['websocket', 'polling'] // Intentar WebSocket primero, luego polling
+        transports: ['websocket', 'polling'], // Intentar WebSocket primero, luego polling
+        upgrade: true,
+        rememberUpgrade: true,
+        autoConnect: true
       });
 
       // Eventos de conexión
       socket.on('connect', () => {
-        console.log('✅ Conectado al servidor');
+        console.log(`✅ Conectado al servidor (Transport: ${socket.io.engine.transport.name})`);
         reconnectAttempts = 0;
         updateStatus('connected');
+      });
+
+      // Monitorear cambios de transporte
+      socket.io.engine.on('upgrade', (transport) => {
+        console.log(`⬆️ Upgraded to ${transport.name}`);
       });
 
       socket.on('disconnect', () => {
@@ -480,6 +491,8 @@
 
       socket.on('connect_error', (err) => {
         console.error('❌ Error de conexión de socket:', err.message);
+        console.error('   URL intentada:', socketUrl);
+        console.error('   Transport actual:', socket.io.engine ? socket.io.engine.transport.name : 'none');
       });
     }
 
@@ -569,13 +582,31 @@
 
     // Actualizar vino (enviar al servidor)
     function updateWine(wineId, type, amount) {
-      if (socket && socket.connected) {
-        const wine = wines.find(w => w._id === wineId);
-        console.log(`📤 Enviando: ${wine.name} - ${type} ${amount > 0 ? '+' : ''}${amount}`);
+      if (!socket) {
+        console.error('❌ Socket no inicializado');
+        alert('Error: Conexión no inicializada. Recarga la página.');
+        return;
+      }
+
+      if (!socket.connected) {
+        console.warn('⚠️ Socket desconectado. Intentando reconectar...');
+        socket.connect();
+        setTimeout(() => {
+          if (socket.connected) {
+            updateWine(wineId, type, amount);
+          } else {
+            alert('No se puede conectar al servidor. Por favor, verifica tu conexión e intenta de nuevo.');
+          }
+        }, 1000);
+        return;
+      }
+
+      const wine = wines.find(w => w._id === wineId);
+      if (wine) {
+        console.log(`📤 Enviando actualización: ${wine.name} - ${type} ${amount > 0 ? '+' : ''}${amount}`);
         socket.emit('update-wine', { wineId, type, amount });
       } else {
-        console.error('❌ No se puede actualizar: Socket no conectado.');
-        alert('No estás conectado al servidor. La acción no se registró.');
+        console.error(`❌ Vino no encontrado: ${wineId}`);
       }
     }
 
