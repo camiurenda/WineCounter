@@ -250,7 +250,7 @@ app.post('/api/wines', async (req, res) => {
 
     // Notificar a todos los clientes
     const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
-    io.emit('wines-updated', activeWines);
+    io.emit('wines-list-updated', activeWines);
 
     res.json(newWine);
   } catch (error) {
@@ -297,7 +297,7 @@ app.put('/api/wines/:id', async (req, res) => {
     // Notificar a todos los clientes si el vino está activo
     if (result.value.active) {
       const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
-      io.emit('wines-updated', activeWines);
+      io.emit('wines-list-updated', activeWines);
     }
 
     res.json(result.value);
@@ -329,7 +329,7 @@ app.delete('/api/wines/:id', async (req, res) => {
 
     // Notificar a todos los clientes
     const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
-    io.emit('wines-updated', activeWines);
+    io.emit('wines-list-updated', activeWines);
 
     res.json({ message: 'Vino dado de baja exitosamente', wine: result.value });
   } catch (error) {
@@ -360,7 +360,7 @@ app.put('/api/wines/:id/reactivate', async (req, res) => {
 
     // Notificar a todos los clientes
     const activeWines = await winesCollection.find({ active: true }).sort({ name: 1 }).toArray();
-    io.emit('wines-updated', activeWines);
+    io.emit('wines-list-updated', activeWines);
 
     res.json({ message: 'Vino reactivado exitosamente', wine: result.value });
   } catch (error) {

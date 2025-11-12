@@ -499,7 +499,9 @@
           updateWineCard(updatedWine);
           updateTotals();
         } else {
-          console.warn('⚠️ Vino no encontrado en array local:', updatedWine._id);
+          // Si el vino no existe, es probable que sea uno nuevo, así que volvemos a renderizar todo.
+          console.log('📦 Recibido nuevo vino, actualizando lista completa.');
+          socket.emit('request-sync'); // Pedir la lista completa al servidor
         }
       });
 
@@ -517,7 +519,7 @@
         updateTotals();
       });
 
-      socket.on('wines-updated', (data) => {
+      socket.on('wines-list-updated', (data) => {
         console.log('🔄 Lista de vinos actualizada');
         wines = data;
         renderWines();
